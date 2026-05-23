@@ -77,10 +77,18 @@ class BrainChatService:
         )
 
     async def _call_openai(self, prompt: str) -> str:
-        from openai import AsyncOpenAI
+        from openai import APIError, AsyncOpenAI, RateLimitError
 
         client = AsyncOpenAI(api_key=self.api_key)
-        response = await client.responses.create(model=self.model, input=prompt)
+        try:
+            response = await client.responses.create(model=self.model, input=prompt)
+        except RateLimitError as exc:
+            message = str(exc)
+            if "insufficient_quota" in message:
+                return "OpenAI API сейчас без квоты. Нужно проверить billing/credits в OpenAI Platform."
+            return "OpenAI временно ограничил запрос. Попробуй чуть позже."
+        except APIError:
+            return "OpenAI сейчас не ответил. Попробуй ещё раз чуть позже."
         text = getattr(response, "output_text", "") or ""
         return text.strip() or "Не смог собрать ответ. Уточни вопрос."
 
