@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -82,6 +82,10 @@ class TeaService:
         if scope == "today":
             sales = [sale for sale in sales if str(sale.get("timestamp", "")).startswith(f"{now:%Y-%m-%d}")]
             title = "Продажи за сегодня"
+        elif scope == "week":
+            start = now - timedelta(days=7)
+            sales = [sale for sale in sales if _parse_timestamp(sale) >= start]
+            title = "Продажи за 7 дней"
         elif scope == "month":
             sales = [sale for sale in sales if str(sale.get("timestamp", "")).startswith(f"{now:%Y-%m}")]
             title = "Продажи за месяц"
@@ -227,3 +231,11 @@ class TeaService:
     def _last_active_sale(self) -> dict | None:
         sales = self._active_sales()
         return sales[-1] if sales else None
+
+
+def _parse_timestamp(sale: dict) -> datetime:
+    raw = str(sale.get("timestamp", "1970-01-01T00:00:00+00:00"))
+    try:
+        return datetime.fromisoformat(raw)
+    except ValueError:
+        return datetime.fromisoformat("1970-01-01T00:00:00+00:00")

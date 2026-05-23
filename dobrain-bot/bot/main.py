@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime
 
 from bot.config import load_settings
+from bot.keyboards import main_keyboard
 from brain.chat import BrainChatService
 from brain.service import BrainService
 from payments.service import PaymentsService
@@ -35,6 +36,7 @@ async def main() -> None:
 
     bot = Bot(settings.telegram_bot_token)
     dp = Dispatcher()
+    pending_custom_weight: dict[int, str] = {}
 
     def allowed(message: Message) -> bool:
         return not settings.allowed_user_ids or message.from_user.id in settings.allowed_user_ids
@@ -46,13 +48,57 @@ async def main() -> None:
         return InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    InlineKeyboardButton(text="Продажи сегодня", callback_data="tea:report:today"),
-                    InlineKeyboardButton(text="Продажи месяц", callback_data="tea:report:month"),
+                    InlineKeyboardButton(text="➕ Продажа", callback_data="tea:sale"),
+                    InlineKeyboardButton(text="📦 Остатки", callback_data="tea:stock"),
                 ],
                 [
-                    InlineKeyboardButton(text="Каталог", callback_data="tea:catalog"),
-                    InlineKeyboardButton(text="Остатки", callback_data="tea:stock"),
+                    InlineKeyboardButton(text="Сегодня", callback_data="tea:report:today"),
+                    InlineKeyboardButton(text="Неделя", callback_data="tea:report:week"),
                 ],
+                [
+                    InlineKeyboardButton(text="Месяц", callback_data="tea:report:month"),
+                    InlineKeyboardButton(text="Всё время", callback_data="tea:report:all"),
+                ],
+                [
+                    InlineKeyboardButton(text="📋 Каталог", callback_data="tea:catalog"),
+                ],
+            ]
+        )
+
+    def tea_type_keyboard() -> InlineKeyboardMarkup:
+        types = []
+        for item in catalog.items:
+            if item.tea_type not in types:
+                types.append(item.tea_type)
+        rows = [
+            [InlineKeyboardButton(text=tea_type, callback_data=f"tea:type:{tea_type}")]
+            for idx, tea_type in enumerate(types)
+        ]
+        rows.append([InlineKeyboardButton(text="Назад", callback_data="tea:menu")])
+        return InlineKeyboardMarkup(inline_keyboard=rows)
+
+    def tea_items_keyboard(tea_type: str) -> InlineKeyboardMarkup:
+        rows = []
+        for idx, item in enumerate(catalog.items):
+            if item.tea_type == tea_type:
+                rows.append([InlineKeyboardButton(text=item.name[:60], callback_data=f"tea:item:{idx}")])
+        rows.append([InlineKeyboardButton(text="Назад", callback_data="tea:sale")])
+        return InlineKeyboardMarkup(inline_keyboard=rows)
+
+    def grams_keyboard(item_idx: int) -> InlineKeyboardMarkup:
+        return InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="8 г", callback_data=f"tea:grams:{item_idx}:8"),
+                    InlineKeyboardButton(text="10 г", callback_data=f"tea:grams:{item_idx}:10"),
+                    InlineKeyboardButton(text="25 г", callback_data=f"tea:grams:{item_idx}:25"),
+                ],
+                [
+                    InlineKeyboardButton(text="50 г", callback_data=f"tea:grams:{item_idx}:50"),
+                    InlineKeyboardButton(text="100 г", callback_data=f"tea:grams:{item_idx}:100"),
+                    InlineKeyboardButton(text="Свой вес", callback_data=f"tea:custom:{item_idx}"),
+                ],
+                [InlineKeyboardButton(text="Назад", callback_data=f"tea:type:{catalog.items[item_idx].tea_type}")],
             ]
         )
 
@@ -79,7 +125,7 @@ async def main() -> None:
     async def start(message: Message) -> None:
         if not allowed(message):
             return
-        await message.answer("Dual Brain готов. Команды: /status /tea /payments /today /tasks")
+        await message.answer("Dual Brain готов.", reply_markup=main_keyboard())
 
     @dp.message(Command("status"))
     async def status(message: Message) -> None:
@@ -134,10 +180,36 @@ async def main() -> None:
             return
         now = datetime.now(settings.timezone)
         data = callback.data or ""
+        if data == "tea:menu":
+            await callback.message.answer("🍵 Чай", reply_markup=tea_keyboard())
+        elif data == "tea:sale":
+            await callback.message.answer("Выбери тип чая:", reply_markup=tea_type_keyboard())
+        elif data.startswith("tea:type:"):
+            tea_type = data.removeprefix("tea:type:")
+            await callback.message.answer(f"{tea_type}: выбери сорт", reply_markup=tea_items_keyboard(tea_type))
+        elif data.startswith("tea:item:"):
+            item_idx = int(data.removeprefix("tea:item:"))
+            item = catalog.items[item_idx]
+            await callback.message.answer(
+                f"{item.name}\n{item.price_per_gram} руб/г\nВыбери граммовку:",
+                reply_markup=grams_keyboard(item_idx),
+            )
+        elif data.startswith("tea:grams:"):
+            _, _, item_idx_raw, grams_raw = data.split(":")
+            sale = tea.add_sale(catalog.items[int(item_idx_raw)].name, int(grams_raw), now, source="telegram_button")
+            await callback.message.answer(f"✅ {sale.item.name}\n{sale.grams} г = {sale.total} руб")
+        elif data.startswith("tea:custom:"):
+            item_idx = int(data.removeprefix("tea:custom:"))
+            pending_custom_weight[callback.from_user.id] = catalog.items[item_idx].name
+            await callback.message.answer("Напиши вес числом, например: 37")
         if data == "tea:report:today":
             await callback.message.answer(tea.report(now, "today"))
+        elif data == "tea:report:week":
+            await callback.message.answer(tea.report(now, "week"))
         elif data == "tea:report:month":
             await callback.message.answer(tea.report(now, "month"))
+        elif data == "tea:report:all":
+            await callback.message.answer(tea.report(now, "all"))
         elif data == "tea:catalog":
             await callback.message.answer(tea.catalog_summary())
         elif data == "tea:stock":
@@ -157,6 +229,34 @@ async def main() -> None:
         text = message.text or ""
         now = datetime.now(settings.timezone)
         low = text.lower()
+        if text == "🍵 Чай":
+            await message.answer("🍵 Чай", reply_markup=tea_keyboard())
+            return
+        if text == "📊 Статус":
+            await status(message)
+            return
+        if text == "💰 Оплаты":
+            await show_payments(message)
+            return
+        if text == "✅ Задача":
+            await message.answer("Напиши: задача <текст>")
+            return
+        if text == "💡 Идея":
+            await message.answer("Напиши: идея <текст>")
+            return
+        if text == "📅 Дневник":
+            await message.answer("Напиши: дневник <текст>")
+            return
+        if message.from_user and message.from_user.id in pending_custom_weight:
+            grams = parse_grams(text) or parse_plain_int(text)
+            item_name = pending_custom_weight.pop(message.from_user.id)
+            if grams is None:
+                await message.answer("Не понял вес. Напиши числом, например: 37")
+                pending_custom_weight[message.from_user.id] = item_name
+                return
+            sale = tea.add_sale(item_name, grams, now, source="telegram_button_custom")
+            await message.answer(f"✅ {sale.item.name}\n{sale.grams} г = {sale.total} руб")
+            return
         if low.startswith("продажа ") or "внеси продажу" in low or "запиши продажу" in low:
             grams = parse_grams(text)
             if grams is None:
@@ -228,6 +328,11 @@ def extra_context(text: str, now: datetime, tea: TeaService, payments: PaymentsS
     if any(word in low for word in ["оплат", "подпис", "vps", "сервер", "vpn", "claude"]):
         chunks.append("## Подписки и оплаты\n" + payments.format_payments(now))
     return "\n\n".join(chunks)
+
+
+def parse_plain_int(text: str) -> int | None:
+    stripped = text.strip()
+    return int(stripped) if stripped.isdigit() else None
 
 
 if __name__ == "__main__":

@@ -18,6 +18,8 @@ from tea.catalog import TeaCatalog
 from tea.service import TeaService, parse_grams
 from brain.chat import BrainChatService
 from brain.service import BrainService
+from bot.keyboards import MAIN_BUTTON_ROWS
+from bot.main import parse_plain_int
 
 
 class CatalogAndServicesTest(unittest.TestCase):
@@ -34,6 +36,16 @@ class CatalogAndServicesTest(unittest.TestCase):
     def test_parse_grams(self) -> None:
         self.assertEqual(parse_grams("внеси продажу белого чая 8 грамм"), 8)
         self.assertEqual(parse_grams("продажа тегуаньинь 10г"), 10)
+        self.assertEqual(parse_plain_int("37"), 37)
+        self.assertIsNone(parse_plain_int("37 г"))
+
+    def test_main_keyboard_has_core_buttons(self) -> None:
+        labels = [button for row in MAIN_BUTTON_ROWS for button in row]
+        self.assertIn("🍵 Чай", labels)
+        self.assertIn("✅ Задача", labels)
+        self.assertIn("💡 Идея", labels)
+        self.assertIn("📅 Дневник", labels)
+        self.assertIn("📊 Статус", labels)
 
     def test_add_sale_writes_markdown_and_jsonl(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -72,6 +84,7 @@ class CatalogAndServicesTest(unittest.TestCase):
 
             report = tea.report(datetime.fromisoformat("2026-05-23T12:00:00+04:00"), "today")
             self.assertIn("72 руб", report)
+            self.assertIn("Продажи за 7 дней", tea.report(datetime.fromisoformat("2026-05-23T12:00:00+04:00"), "week"))
             self.assertIn("Байхао Инджень Юньнань", tea.catalog_summary())
             self.assertIn("Остатки чая", tea.stock_summary())
             self.assertIn("остаток 992 г", tea.stock_summary())
