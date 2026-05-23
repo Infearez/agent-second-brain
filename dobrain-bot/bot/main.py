@@ -52,6 +52,9 @@ async def main() -> None:
                     InlineKeyboardButton(text="📦 Остатки", callback_data="tea:stock"),
                 ],
                 [
+                    InlineKeyboardButton(text="↩️ Отменить последнюю", callback_data="tea:cancel:last"),
+                ],
+                [
                     InlineKeyboardButton(text="Сегодня", callback_data="tea:report:today"),
                     InlineKeyboardButton(text="Неделя", callback_data="tea:report:week"),
                 ],
@@ -202,6 +205,13 @@ async def main() -> None:
             item_idx = int(data.removeprefix("tea:custom:"))
             pending_custom_weight[callback.from_user.id] = catalog.items[item_idx].name
             await callback.message.answer("Напиши вес числом, например: 37")
+        elif data == "tea:cancel:last":
+            try:
+                sale = tea.cancel_last_sale(now, source="telegram_button")
+            except ValueError as exc:
+                await callback.message.answer(str(exc))
+            else:
+                await callback.message.answer(f"Отменил: {sale['item']['name']}, {sale['grams']} г, {sale['total']} руб")
         if data == "tea:report:today":
             await callback.message.answer(tea.report(now, "today"))
         elif data == "tea:report:week":
