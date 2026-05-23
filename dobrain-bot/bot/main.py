@@ -22,7 +22,7 @@ async def main() -> None:
 
     from aiogram import Bot, Dispatcher, F
     from aiogram.filters import Command
-    from aiogram.types import Message
+    from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
     storage = VaultStorage(settings.vault_path)
     storage.ensure_dirs()
@@ -37,28 +37,64 @@ async def main() -> None:
     def allowed(message: Message) -> bool:
         return not settings.allowed_user_ids or message.from_user.id in settings.allowed_user_ids
 
+    def allowed_callback(callback: CallbackQuery) -> bool:
+        return not settings.allowed_user_ids or callback.from_user.id in settings.allowed_user_ids
+
+    def tea_keyboard() -> InlineKeyboardMarkup:
+        return InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="Продажи сегодня", callback_data="tea:report:today"),
+                    InlineKeyboardButton(text="Продажи месяц", callback_data="tea:report:month"),
+                ],
+                [
+                    InlineKeyboardButton(text="Каталог", callback_data="tea:catalog"),
+                    InlineKeyboardButton(text="Остатки", callback_data="tea:stock"),
+                ],
+            ]
+        )
+
+    async def payment_reminder_loop() -> None:
+        if not settings.allowed_user_ids:
+            return
+        while True:
+            now = datetime.now(settings.timezone)
+            for payment in payments.due_reminders(now):
+                if payments.already_notified(payment, now.date()):
+                    continue
+                text = (
+                    f"Напоминание об оплате: {payment.service}\n"
+                    f"Следующая оплата: {payment.next_payment or 'неизвестно'}\n"
+                    f"Статус: {payment.status}\n"
+                    f"[[Подписки и оплаты]]"
+                )
+                for user_id in settings.allowed_user_ids:
+                    await bot.send_message(user_id, text)
+                payments.mark_notified(payment, now)
+            await asyncio.sleep(60 * 60)
+
     @dp.message(Command("start"))
     async def start(message: Message) -> None:
         if not allowed(message):
             return
-        await message.answer("DoBrain готов. Команды: /status /tea /payments /today /tasks")
+        await message.answer("Dual Brain готов. Команды: /status /tea /payments /today /tasks")
 
     @dp.message(Command("status"))
     async def status(message: Message) -> None:
         if not allowed(message):
             return
-        await message.answer(f"Vault: {settings.vault_path}\nЧаёв в каталоге: {len(catalog.items)}")
+        due = payments.due_reminders(datetime.now(settings.timezone))
+        await message.answer(
+            f"Vault: {settings.vault_path}\n"
+            f"Чаёв в каталоге: {len(catalog.items)}\n"
+            f"Напоминаний сегодня: {len(due)}"
+        )
 
     @dp.message(Command("payments"))
     async def show_payments(message: Message) -> None:
         if not allowed(message):
             return
-        rows = payments.list_payments()
-        text = "\n".join(
-            f"{p.service}: след. {p.next_payment or 'неизвестно'}, напомнить {p.reminder or 'неизвестно'}"
-            for p in rows
-        )
-        await message.answer(text or "Оплаты не найдены")
+        await message.answer(payments.format_payments(datetime.now(settings.timezone)))
 
     @dp.message(Command("today"))
     async def today(message: Message) -> None:
@@ -85,7 +121,34 @@ async def main() -> None:
             "- отмена продажи\n"
             "- исправь продажу <чай> <граммы>г\n"
             "- продажи сегодня / продажи месяц / продажи все"
+            "\n\nМожно начать с кнопок ниже."
+            ,
+            reply_markup=tea_keyboard(),
         )
+
+    @dp.callback_query(F.data.startswith("tea:"))
+    async def tea_callback(callback: CallbackQuery) -> None:
+        if not allowed_callback(callback):
+            return
+        now = datetime.now(settings.timezone)
+        data = callback.data or ""
+        if data == "tea:report:today":
+            await callback.message.answer(tea.report(now, "today"))
+        elif data == "tea:report:month":
+            await callback.message.answer(tea.report(now, "month"))
+        elif data == "tea:catalog":
+            await callback.message.answer(tea.catalog_summary())
+        elif data == "tea:stock":
+            await callback.message.answer(tea.stock_summary()[:3500])
+        await callback.answer()
+
+    @dp.message(F.voice)
+    async def voice_handler(message: Message) -> None:
+        if not allowed(message):
+            return
+        now = datetime.now(settings.timezone)
+        brain.add_inbox("Голосовое сообщение без расшифровки. Нужно добавить транскрибацию вторым этапом. #разобрать", now)
+        await message.answer("Голос сохранил во входящие #разобрать. Расшифровку подключим следующим этапом.")
 
     @dp.message(F.text)
     async def text_handler(message: Message) -> None:
@@ -140,21 +203,15 @@ async def main() -> None:
         if low.startswith("продажи все") or low.startswith("продажи всё"):
             await message.answer(tea.report(now, "all"))
             return
-        if low.startswith("задача "):
-            brain.add_task(command_payload(text, "задача "), now)
-            await message.answer("Задача добавлена")
+        if low.startswith("каталог") or low.startswith("прайс"):
+            await message.answer(tea.catalog_summary())
             return
-        if low.startswith("идея "):
-            brain.add_idea(command_payload(text, "идея "), now)
-            await message.answer("Идея сохранена")
+        if low.startswith("остатки"):
+            await message.answer(tea.stock_summary()[:3500])
             return
-        if low.startswith("дневник "):
-            brain.add_diary(command_payload(text, "дневник "), now)
-            await message.answer("Запись добавлена в дневник")
-            return
-        brain.add_inbox(text, now)
-        await message.answer("Сохранил во входящие")
+        await message.answer(brain.route_text(text, now))
 
+    asyncio.create_task(payment_reminder_loop())
     await dp.start_polling(bot)
 
 

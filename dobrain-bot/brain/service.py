@@ -35,3 +35,23 @@ class BrainService:
             f"- {now:%Y-%m-%d %H:%M} — {text} [[DoBrain]] #идея",
         )
 
+    def route_text(self, text: str, now: datetime) -> str:
+        cleaned = text.strip()
+        lowered = cleaned.lower()
+        routes = [
+            ("задача", self.add_task, "Задача добавлена"),
+            ("таск", self.add_task, "Задача добавлена"),
+            ("todo", self.add_task, "Задача добавлена"),
+            ("идея", self.add_idea, "Идея сохранена"),
+            ("дневник", self.add_diary, "Запись добавлена в дневник"),
+            ("запись", self.add_diary, "Запись добавлена в дневник"),
+        ]
+        for prefix, handler, answer in routes:
+            if lowered.startswith(prefix + " "):
+                handler(cleaned[len(prefix) :].strip(), now)
+                return answer
+            if lowered.startswith(prefix + ":"):
+                handler(cleaned[len(prefix) + 1 :].strip(), now)
+                return answer
+        self.add_inbox(cleaned, now)
+        return "Сохранил во входящие"

@@ -16,6 +16,7 @@ from payments.service import PaymentsService
 from storage.vault import VaultStorage
 from tea.catalog import TeaCatalog
 from tea.service import TeaService, parse_grams
+from brain.service import BrainService
 
 
 class CatalogAndServicesTest(unittest.TestCase):
@@ -66,10 +67,30 @@ class CatalogAndServicesTest(unittest.TestCase):
 
             report = tea.report(datetime.fromisoformat("2026-05-23T12:00:00+04:00"), "today")
             self.assertIn("72 руб", report)
+            self.assertIn("Байхао Инджень Юньнань", tea.catalog_summary())
+            self.assertIn("Остатки", tea.stock_summary())
 
             canceled = tea.cancel_last_sale(datetime.fromisoformat("2026-05-23T12:10:00+04:00"))
             self.assertEqual(canceled["id"], sale.id)
             self.assertIn("нет записей", tea.report(datetime.fromisoformat("2026-05-23T12:20:00+04:00"), "today"))
+
+    def test_brain_routes_text_to_working_notes(self) -> None:
+        with TemporaryDirectory() as tmp:
+            vault = Path(tmp)
+            storage = VaultStorage(vault)
+            storage.ensure_dirs()
+            brain = BrainService(storage)
+            now = datetime.fromisoformat("2026-05-23T13:00:00+04:00")
+
+            self.assertEqual(brain.route_text("задача проверить Syncthing", now), "Задача добавлена")
+            self.assertEqual(brain.route_text("идея: сделать быстрые кнопки", now), "Идея сохранена")
+            self.assertEqual(brain.route_text("дневник сегодня бот ожил", now), "Запись добавлена в дневник")
+            self.assertEqual(brain.route_text("непонятная мысль", now), "Сохранил во входящие")
+
+            self.assertIn("проверить Syncthing", (vault / "✅ Задачи/Собранные задачи.md").read_text(encoding="utf-8"))
+            self.assertIn("быстрые кнопки", (vault / "💡 Идеи/Собранные идеи.md").read_text(encoding="utf-8"))
+            self.assertIn("бот ожил", (vault / "📅 Дневник/2026-05-23.md").read_text(encoding="utf-8"))
+            self.assertIn("#разобрать", (vault / "📥 Входящие/2026-05-23.md").read_text(encoding="utf-8"))
 
     def test_payments_find_june_reminders(self) -> None:
         payments = PaymentsService(VaultStorage(VAULT))
@@ -82,6 +103,24 @@ class CatalogAndServicesTest(unittest.TestCase):
         self.assertIn("Strelka VPN", [payment.service for payment in rows])
         self.assertIn("VPS", [payment.service for payment in vps_due])
         self.assertIn("Claude Code", [payment.service for payment in claude_due])
+        self.assertIn("Ближайшие оплаты", payments.format_payments(datetime.fromisoformat("2026-06-04T09:00:00+04:00")))
+
+    def test_payment_notification_marker(self) -> None:
+        with TemporaryDirectory() as tmp:
+            vault = Path(tmp)
+            finance = vault / "💰 Финансы"
+            finance.mkdir(parents=True)
+            (finance / "Подписки и оплаты.md").write_text(
+                (VAULT / "💰 Финансы/Подписки и оплаты.md").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            payments = PaymentsService(VaultStorage(vault))
+            payment = payments.due_reminders(datetime.fromisoformat("2026-06-03T09:00:00+04:00"))[0]
+            now = datetime.fromisoformat("2026-06-03T09:00:00+04:00")
+
+            self.assertFalse(payments.already_notified(payment, now.date()))
+            payments.mark_notified(payment, now)
+            self.assertTrue(payments.already_notified(payment, now.date()))
 
 
 if __name__ == "__main__":

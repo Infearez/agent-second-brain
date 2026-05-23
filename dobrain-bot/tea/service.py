@@ -35,7 +35,11 @@ class TeaService:
     def add_sale(self, query: str, grams: int, now: datetime, source: str = "telegram") -> TeaSale:
         matches = self.catalog.find(query)
         if len(matches) != 1:
-            raise ValueError("Нужно уточнить чай #разобрать")
+            hint = ""
+            if matches:
+                names = ", ".join(item.name for item in matches[:5])
+                hint = f" Варианты: {names}"
+            raise ValueError(f"Нужно уточнить чай #разобрать.{hint}")
         item = matches[0]
         sale = TeaSale(
             id=str(uuid4()),
@@ -92,6 +96,30 @@ class TeaService:
             for sale in sales[-10:]
         ]
         return f"{title}\nВсего: {grams} г, {total} руб\n" + "\n".join(rows)
+
+    def catalog_summary(self, limit: int = 20) -> str:
+        if not self.catalog.items:
+            return "Каталог пуст или прайс не прочитан"
+        rows = [
+            f"- {item.name}: {item.price_per_gram} руб/г, {item.price_per_10g} руб/10г"
+            for item in self.catalog.items[:limit]
+        ]
+        tail = ""
+        if len(self.catalog.items) > limit:
+            tail = f"\n...ещё {len(self.catalog.items) - limit}"
+        return "Каталог чая:\n" + "\n".join(rows) + tail
+
+    def stock_summary(self) -> str:
+        path = self.storage.paths.root / "🍵 Чай/Остатки/Остатки_из_Excel.md"
+        if not path.exists():
+            return "Остатки не найдены #разобрать"
+        lines = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("| ") or line.startswith("#") or line.startswith("-"):
+                lines.append(line)
+            if len(lines) >= 25:
+                break
+        return "\n".join(lines).strip() or "Остатки требуют ручной проверки #разобрать"
 
     def _write_sale(self, sale: TeaSale) -> None:
         date = f"{sale.timestamp:%Y-%m-%d %H:%M}"
