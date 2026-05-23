@@ -91,11 +91,28 @@ class TeaService:
             return f"{title}: нет записей"
         total = sum(int(sale.get("total", 0)) for sale in sales)
         grams = sum(int(sale.get("grams", 0)) for sale in sales)
-        rows = [
-            f"{sale['item']['name']}: {sale['grams']} г, {sale['total']} руб"
-            for sale in sales[-10:]
+        by_item: dict[str, dict[str, int]] = {}
+        for sale in sales:
+            name = sale["item"]["name"]
+            row = by_item.setdefault(name, {"grams": 0, "total": 0})
+            row["grams"] += int(sale.get("grams", 0))
+            row["total"] += int(sale.get("total", 0))
+        summary_rows = [
+            f"- {name}: {row['grams']} г, {row['total']} руб"
+            for name, row in sorted(by_item.items(), key=lambda item: item[1]["total"], reverse=True)
         ]
-        return f"{title}\nВсего: {grams} г, {total} руб\n" + "\n".join(rows)
+        recent_rows = [
+            f"{sale['item']['name']}: {sale['grams']} г, {sale['total']} руб"
+            for sale in sales[-8:]
+        ]
+        return (
+            f"{title}\n"
+            f"Всего: {grams} г, {total} руб\n\n"
+            "По сортам:\n"
+            + "\n".join(summary_rows)
+            + "\n\nПоследние операции:\n"
+            + "\n".join(recent_rows)
+        )
 
     def catalog_summary(self, limit: int = 20) -> str:
         if not self.catalog.items:
