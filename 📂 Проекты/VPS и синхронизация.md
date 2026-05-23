@@ -21,6 +21,8 @@ VPS нужен, чтобы Telegram-бот DoBrain работал стабиль
 - Стоимость: €1.99/мес.
 - Дата следующей оплаты: 2026-06-07 04:25.
 - Дата напоминания: 2026-06-03.
+- `dobrain-bot.service`: active/enabled с 2026-05-23.
+- Активный Telegram-бот: `@DoBrainVaultBot`.
 
 ## Целевая схема
 
@@ -29,6 +31,7 @@ VPS нужен, чтобы Telegram-бот DoBrain работал стабиль
 - Проект бота на VPS: `~/dobrain-bot`.
 - Синхронизация: Syncthing.
 - Сервис запуска: `systemd`.
+- Активный unit: `dobrain-bot.service`.
 
 ## Что проверить первым
 
@@ -57,6 +60,14 @@ df -h "$HOME"
 - `deploy/setup-vps.sh` — установка Python, Syncthing и рабочего пользователя.
 - `deploy/dobrain-bot.service` — systemd-сервис.
 - `deploy/syncthing-notes.md` — заметки по синхронизации.
+
+## Текущая проверка
+
+- VPS отвечает по SSH.
+- `api.telegram.org` доступен с сервера.
+- `dobrain-bot` установлен в `/home/dobrain/dobrain-bot`.
+- Vault лежит в `/home/dobrain/DoBrainVault`.
+- Новый Telegram-бот `@DoBrainVaultBot` отвечает на `/start` и `/status`.
 
 ## Безопасность
 
