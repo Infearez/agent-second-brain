@@ -16,6 +16,7 @@ from payments.service import PaymentsService
 from storage.vault import VaultStorage
 from tea.catalog import TeaCatalog
 from tea.service import TeaService, parse_grams
+from brain.chat import BrainChatService
 from brain.service import BrainService
 
 
@@ -90,12 +91,30 @@ class CatalogAndServicesTest(unittest.TestCase):
             self.assertEqual(brain.route_text("задача проверить Syncthing", now), "Задача добавлена")
             self.assertEqual(brain.route_text("идея: сделать быстрые кнопки", now), "Идея сохранена")
             self.assertEqual(brain.route_text("дневник сегодня бот ожил", now), "Запись добавлена в дневник")
-            self.assertEqual(brain.route_text("непонятная мысль", now), "Сохранил во входящие")
+            self.assertEqual(brain.route_text("непонятная мысль", now), "Команда не распознана")
+            self.assertEqual(brain.route_text("сохрани как задачу купить упаковку", now), "Сохранил как задачу")
+            self.assertEqual(brain.route_text("сохрани мысль про чай", now), "Сохранил во входящие")
 
             self.assertIn("проверить Syncthing", (vault / "✅ Задачи/Собранные задачи.md").read_text(encoding="utf-8"))
             self.assertIn("быстрые кнопки", (vault / "💡 Идеи/Собранные идеи.md").read_text(encoding="utf-8"))
             self.assertIn("бот ожил", (vault / "📅 Дневник/2026-05-23.md").read_text(encoding="utf-8"))
-            self.assertIn("#разобрать", (vault / "📥 Входящие/2026-05-23.md").read_text(encoding="utf-8"))
+            self.assertIn("мысль про чай", (vault / "📥 Входящие/2026-05-23.md").read_text(encoding="utf-8"))
+
+    def test_chat_without_key_does_not_save_inbox(self) -> None:
+        with TemporaryDirectory() as tmp:
+            vault = Path(tmp)
+            (vault / "🧠 Второй мозг").mkdir(parents=True)
+            (vault / "🧠 Второй мозг/DoBrain.md").write_text("DoBrain — база знаний.", encoding="utf-8")
+            storage = VaultStorage(vault)
+            storage.ensure_dirs()
+            chat = BrainChatService(storage, "", "gpt-5-mini")
+            now = datetime.fromisoformat("2026-05-23T13:00:00+04:00")
+
+            response = __import__("asyncio").run(chat.answer("Что такое DoBrain?", now))
+
+            self.assertIn("OPENAI_API_KEY", response.answer)
+            self.assertFalse((vault / "📥 Входящие/2026-05-23.md").exists())
+            self.assertTrue((vault / "📦 Архив/Служебное/chat-log.jsonl").exists())
 
     def test_payments_find_june_reminders(self) -> None:
         payments = PaymentsService(VaultStorage(VAULT))

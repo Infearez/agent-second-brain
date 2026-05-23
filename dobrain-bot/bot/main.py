@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime
 
 from bot.config import load_settings
+from brain.chat import BrainChatService
 from brain.service import BrainService
 from payments.service import PaymentsService
 from storage.vault import VaultStorage
@@ -29,6 +30,7 @@ async def main() -> None:
     catalog = TeaCatalog.from_markdown(settings.vault_path / "🍵 Чай/Каталог чая.md")
     tea = TeaService(storage, catalog)
     brain = BrainService(storage)
+    chat = BrainChatService(storage, settings.openai_api_key, settings.openai_model)
     payments = PaymentsService(storage)
 
     bot = Bot(settings.telegram_bot_token)
@@ -146,9 +148,7 @@ async def main() -> None:
     async def voice_handler(message: Message) -> None:
         if not allowed(message):
             return
-        now = datetime.now(settings.timezone)
-        brain.add_inbox("Голосовое сообщение без расшифровки. Нужно добавить транскрибацию вторым этапом. #разобрать", now)
-        await message.answer("Голос сохранил во входящие #разобрать. Расшифровку подключим следующим этапом.")
+        await message.answer("Голос пока не понимаю и не сохраняю. Напиши текстом или скажи: «сохрани ...».")
 
     @dp.message(F.text)
     async def text_handler(message: Message) -> None:
@@ -209,10 +209,25 @@ async def main() -> None:
         if low.startswith("остатки"):
             await message.answer(tea.stock_summary()[:3500])
             return
-        await message.answer(brain.route_text(text, now))
+        if low.startswith(("сохрани ", "сохранить ", "запомни ", "запиши ", "задача", "добавь задачу", "таск", "todo", "идея", "дневник", "запись")):
+            await message.answer(brain.route_text(text, now))
+            return
+        answer = await chat.answer(text, now, extra_context=extra_context(text, now, tea, payments))
+        await message.answer(answer.answer[:3500])
 
     asyncio.create_task(payment_reminder_loop())
     await dp.start_polling(bot)
+
+
+def extra_context(text: str, now: datetime, tea: TeaService, payments: PaymentsService) -> str:
+    low = text.lower()
+    chunks: list[str] = []
+    if any(word in low for word in ["чай", "продаж", "остат", "прайс", "каталог"]):
+        chunks.append("## Чайные продажи\n" + tea.report(now, "all"))
+        chunks.append("## Остатки чая\n" + tea.stock_summary())
+    if any(word in low for word in ["оплат", "подпис", "vps", "сервер", "vpn", "claude"]):
+        chunks.append("## Подписки и оплаты\n" + payments.format_payments(now))
+    return "\n\n".join(chunks)
 
 
 if __name__ == "__main__":

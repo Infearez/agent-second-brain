@@ -12,6 +12,8 @@ class Settings:
     allowed_user_ids: set[int]
     vault_path: Path
     timezone: ZoneInfo
+    openai_api_key: str
+    openai_model: str
 
 
 def _parse_user_ids(raw: str) -> set[int]:
@@ -30,5 +32,6 @@ def load_settings() -> Settings:
     allowed = _parse_user_ids(os.getenv("ALLOWED_USER_IDS", ""))
     vault = Path(os.getenv("VAULT_PATH", ".")).expanduser().resolve()
     timezone = ZoneInfo(os.getenv("BOT_TIMEZONE", "Europe/Samara"))
-    return Settings(token, allowed, vault, timezone)
-
+    openai_api_key = os.getenv("OPENAI_API_KEY", "")
+    openai_model = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    return Settings(token, allowed, vault, timezone, openai_api_key, openai_model)
