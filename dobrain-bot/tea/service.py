@@ -100,14 +100,20 @@ class TeaService:
     def catalog_summary(self, limit: int = 20) -> str:
         if not self.catalog.items:
             return "Каталог пуст или прайс не прочитан"
-        rows = [
-            f"- {item.name}: {item.price_per_gram} руб/г, {item.price_per_10g} руб/10г"
-            for item in self.catalog.items[:limit]
-        ]
+        grouped: dict[str, list[TeaItem]] = {}
+        for item in self.catalog.items[:limit]:
+            grouped.setdefault(item.tea_type, []).append(item)
+        rows = []
+        for tea_type, items in grouped.items():
+            rows.append(f"\n{tea_type}:")
+            rows.extend(
+                f"- {item.name}\n  {item.price_per_gram} руб/г · {item.price_per_10g} руб/10г"
+                for item in items
+            )
         tail = ""
         if len(self.catalog.items) > limit:
             tail = f"\n...ещё {len(self.catalog.items) - limit}"
-        return "Каталог чая:\n" + "\n".join(rows) + tail
+        return "Каталог чая\n" + "\n".join(rows).strip() + tail
 
     def stock_summary(self) -> str:
         path = self.storage.paths.root / "🍵 Чай/Остатки чая.md"
