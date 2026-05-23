@@ -1,0 +1,15 @@
+[Unit]
+Description=DoBrain Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/dobrain/dobrain-bot
+EnvironmentFile=/home/dobrain/dobrain-bot/.env
+ExecStart=/home/dobrain/dobrain-bot/.venv/bin/python -m bot.main
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

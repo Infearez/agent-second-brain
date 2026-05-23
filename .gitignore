@@ -1,0 +1,20 @@
+.DS_Store
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+dobrain-bot/.venv/
+.env
+*.env
+
+# Локальные и временные служебные файлы
+*.tmp
+*.swp
+~*
+
+# Архив содержит старый каркас и миграционные копии: оставляем локально, но не заливаем в новый чистый GitHub
+📦 Архив/
+
+# Системные настройки Obsidian оставляем локально, пока не решим синхронизировать их через Git
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json

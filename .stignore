@@ -1,0 +1,10 @@
+(?d).DS_Store
+(?d)__pycache__
+(?d).pytest_cache
+(?d).venv
+(?d)dobrain-bot/.venv
+(?d)dobrain-bot/.pytest_cache
+*.pyc
+*.tmp
+*.swp
+~*

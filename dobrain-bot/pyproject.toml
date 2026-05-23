@@ -1,0 +1,21 @@
+[project]
+name = "dobrain-bot"
+version = "0.1.0"
+description = "Telegram bot for DoBrain Obsidian vault"
+requires-python = ">=3.11"
+dependencies = [
+  "aiogram>=3.4,<4",
+  "python-dotenv>=1.0,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<9",
+]
+
+[tool.setuptools]
+packages = ["bot", "brain", "payments", "services", "storage", "tea"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
