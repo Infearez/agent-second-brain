@@ -23,6 +23,8 @@ VPS нужен, чтобы Telegram-бот DoBrain работал стабиль
 - Дата напоминания: 2026-06-03.
 - `dobrain-bot.service`: active/enabled с 2026-05-23.
 - Активный Telegram-бот: `@DoBrainVaultBot`.
+- Syncthing Mac ↔ VPS настроен 2026-05-23.
+- Mac Device ID: `YF2OL3Z-UDQBPXK-OON6FAO-V2JZRXP-IMVMUM2-CVXZ3CT-6SCXPWG-QFXVPQS`.
 
 ## Целевая схема
 
@@ -32,6 +34,7 @@ VPS нужен, чтобы Telegram-бот DoBrain работал стабиль
 - Синхронизация: Syncthing.
 - Сервис запуска: `systemd`.
 - Активный unit: `dobrain-bot.service`.
+- Syncthing folder id: `default`, label `DoBrainVault`.
 
 ## Что проверить первым
 
@@ -68,6 +71,8 @@ df -h "$HOME"
 - `dobrain-bot` установлен в `/home/dobrain/dobrain-bot`.
 - Vault лежит в `/home/dobrain/DoBrainVault`.
 - Новый Telegram-бот `@DoBrainVaultBot` отвечает на `/start` и `/status`.
+- Тестовые файлы Mac ↔ VPS синхронизировались в обе стороны.
+- `.env` не синхронизировался в серверную копию vault.
 
 ## Безопасность
 

@@ -6,6 +6,10 @@ __pycache__/
 dobrain-bot/.venv/
 .env
 *.env
+.stfolder/
+.obsidian/workspace.sync-conflict-*.json
+.syncthing.*.tmp
+**/.syncthing.*.tmp
 
 # Локальные и временные служебные файлы
 *.tmp

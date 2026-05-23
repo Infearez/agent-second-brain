@@ -1,9 +1,15 @@
 (?d).DS_Store
+(?d).git
+(?d).env
 (?d)__pycache__
 (?d).pytest_cache
 (?d).venv
 (?d)dobrain-bot/.venv
 (?d)dobrain-bot/.pytest_cache
+.env
+dobrain-bot/.env
+.syncthing.*.tmp
+**/.syncthing.*.tmp
 *.pyc
 *.tmp
 *.swp
