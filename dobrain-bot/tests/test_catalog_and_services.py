@@ -100,7 +100,7 @@ class CatalogAndServicesTest(unittest.TestCase):
             self.assertIn("бот ожил", (vault / "📅 Дневник/2026-05-23.md").read_text(encoding="utf-8"))
             self.assertIn("мысль про чай", (vault / "📥 Входящие/2026-05-23.md").read_text(encoding="utf-8"))
 
-    def test_chat_without_key_does_not_save_inbox(self) -> None:
+    def test_chat_without_key_uses_local_fallback_without_saving_inbox(self) -> None:
         with TemporaryDirectory() as tmp:
             vault = Path(tmp)
             (vault / "🧠 Второй мозг").mkdir(parents=True)
@@ -112,7 +112,8 @@ class CatalogAndServicesTest(unittest.TestCase):
 
             response = __import__("asyncio").run(chat.answer("Что такое DoBrain?", now))
 
-            self.assertIn("OPENAI_API_KEY", response.answer)
+            self.assertIn("Нашёл по базе", response.answer)
+            self.assertIn("DoBrain", response.answer)
             self.assertFalse((vault / "📥 Входящие/2026-05-23.md").exists())
             self.assertTrue((vault / "📦 Архив/Служебное/chat-log.jsonl").exists())
 

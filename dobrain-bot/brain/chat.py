@@ -48,8 +48,8 @@ class BrainChatService:
         if extra_context:
             context = f"{extra_context}\n\n{context}".strip()
         if not self.api_key:
-            answer = "GPT пока не подключён: нужно добавить OPENAI_API_KEY в .env на VPS."
-            self.log_chat(now, question, "chat_missing_key", answer, context_files)
+            answer = self._local_answer(question, context, context_files)
+            self.log_chat(now, question, "chat_local_fallback", answer, context_files)
             return ChatResponse(answer, context_files)
 
         prompt = self._prompt(question, context)
@@ -85,7 +85,7 @@ class BrainChatService:
         except RateLimitError as exc:
             message = str(exc)
             if "insufficient_quota" in message:
-                return "OpenAI API сейчас без квоты. Нужно проверить billing/credits в OpenAI Platform."
+                return self._local_answer("OpenAI API без квоты", prompt, [])
             return "OpenAI временно ограничил запрос. Попробуй чуть позже."
         except APIError:
             return "OpenAI сейчас не ответил. Попробуй ещё раз чуть позже."
@@ -102,6 +102,24 @@ class BrainChatService:
             f"Контекст базы:\n{context or 'Контекст не найден.'}\n\n"
             f"Вопрос пользователя:\n{question}"
         )
+
+    def _local_answer(self, question: str, context: str, context_files: list[str]) -> str:
+        if not context.strip():
+            return "Не нашёл данных в базе. Сформулируй чуть конкретнее."
+        lines = []
+        for line in context.splitlines():
+            cleaned = line.strip()
+            if not cleaned or cleaned.startswith("#"):
+                continue
+            if any(mark in cleaned.lower() for mark in ["всего:", "следующая оплата", "напомнить", "остаток", "выручка", "продано", "руб", "г "]):
+                lines.append(cleaned)
+            if len(lines) >= 12:
+                break
+        if not lines:
+            lines = [line.strip() for line in context.splitlines() if line.strip()][:8]
+        files = "\n".join(f"- {name}" for name in context_files[:4])
+        suffix = f"\n\nНашёл в:\n{files}" if files else ""
+        return "Нашёл по базе:\n" + "\n".join(lines) + suffix
 
     def _search_context(self, question: str, limit: int = 6) -> tuple[list[str], str]:
         words = self._keywords(question)
