@@ -26,7 +26,7 @@ async def main() -> None:
 
     storage = VaultStorage(settings.vault_path)
     storage.ensure_dirs()
-    catalog = TeaCatalog.from_markdown(settings.vault_path / "🍵 Чай/Прайсы/Прайс_из_Excel.md")
+    catalog = TeaCatalog.from_markdown(settings.vault_path / "🍵 Чай/Каталог чая.md")
     tea = TeaService(storage, catalog)
     brain = BrainService(storage)
     payments = PaymentsService(storage)

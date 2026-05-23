@@ -63,20 +63,24 @@ class TeaCatalog:
     def from_markdown(cls, path: Path) -> "TeaCatalog":
         items: list[TeaItem] = []
         for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.startswith("| ") or line.startswith("| ---") or "Название" in line:
+            if not line.startswith("| ") or line.startswith("| ---") or _is_header(line):
                 continue
             cells = [cell.strip().replace("<br>", " ") for cell in line.strip("|").split("|")]
             if len(cells) < 5:
                 continue
+            if _looks_number(cells[2]):
+                name, tea_type, price_raw, price10_raw, description = cells[:5]
+            else:
+                name, tea_type, description, price_raw, price10_raw = cells[:5]
             try:
-                price = int(float(cells[3]))
+                price = int(float(price_raw))
             except ValueError:
                 continue
             try:
-                price10 = int(float(cells[4]))
+                price10 = int(float(price10_raw))
             except ValueError:
                 price10 = price * 10
-            items.append(TeaItem(cells[0], cells[1], cells[2], price, price10))
+            items.append(TeaItem(name, tea_type, description, price, price10))
         return cls(items)
 
     def find(self, query: str) -> list[TeaItem]:
@@ -101,3 +105,16 @@ class TeaCatalog:
             for item in self.items
             if all(word in _normalize(item.name) for word in words)
         ]
+
+
+def _looks_number(value: str) -> bool:
+    try:
+        float(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _is_header(line: str) -> bool:
+    lowered = line.lower()
+    return "| название " in lowered or "| чай " in lowered

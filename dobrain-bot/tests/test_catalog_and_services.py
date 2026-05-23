@@ -21,7 +21,7 @@ from brain.service import BrainService
 
 class CatalogAndServicesTest(unittest.TestCase):
     def test_catalog_reads_excel_summary_formulas(self) -> None:
-        catalog = TeaCatalog.from_markdown(VAULT / "🍵 Чай/Прайсы/Прайс_из_Excel.md")
+        catalog = TeaCatalog.from_markdown(VAULT / "🍵 Чай/Каталог чая.md")
 
         self.assertGreaterEqual(len(catalog.items), 10)
         white = catalog.find("внеси продажу белого чая 8 грамм")
@@ -37,15 +37,19 @@ class CatalogAndServicesTest(unittest.TestCase):
     def test_add_sale_writes_markdown_and_jsonl(self) -> None:
         with TemporaryDirectory() as tmp:
             vault = Path(tmp)
-            price_dir = vault / "🍵 Чай/Прайсы"
-            price_dir.mkdir(parents=True)
-            (price_dir / "Прайс_из_Excel.md").write_text(
-                (VAULT / "🍵 Чай/Прайсы/Прайс_из_Excel.md").read_text(encoding="utf-8"),
+            tea_dir = vault / "🍵 Чай"
+            tea_dir.mkdir(parents=True)
+            (tea_dir / "Каталог чая.md").write_text(
+                (VAULT / "🍵 Чай/Каталог чая.md").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            (tea_dir / "Остатки чая.md").write_text(
+                (VAULT / "🍵 Чай/Остатки чая.md").read_text(encoding="utf-8"),
                 encoding="utf-8",
             )
             storage = VaultStorage(vault)
             storage.ensure_dirs()
-            catalog = TeaCatalog.from_markdown(price_dir / "Прайс_из_Excel.md")
+            catalog = TeaCatalog.from_markdown(tea_dir / "Каталог чая.md")
             tea = TeaService(storage, catalog)
             sale = tea.add_sale(
                 "внеси продажу белого чая 8 грамм",
@@ -68,7 +72,8 @@ class CatalogAndServicesTest(unittest.TestCase):
             report = tea.report(datetime.fromisoformat("2026-05-23T12:00:00+04:00"), "today")
             self.assertIn("72 руб", report)
             self.assertIn("Байхао Инджень Юньнань", tea.catalog_summary())
-            self.assertIn("Остатки", tea.stock_summary())
+            self.assertIn("Остатки чая", tea.stock_summary())
+            self.assertIn("остаток 992 г", tea.stock_summary())
 
             canceled = tea.cancel_last_sale(datetime.fromisoformat("2026-05-23T12:10:00+04:00"))
             self.assertEqual(canceled["id"], sale.id)

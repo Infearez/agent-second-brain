@@ -110,16 +110,50 @@ class TeaService:
         return "Каталог чая:\n" + "\n".join(rows) + tail
 
     def stock_summary(self) -> str:
-        path = self.storage.paths.root / "🍵 Чай/Остатки/Остатки_из_Excel.md"
+        path = self.storage.paths.root / "🍵 Чай/Остатки чая.md"
         if not path.exists():
             return "Остатки не найдены #разобрать"
-        lines = []
+        rows = self._stock_rows(path)
+        if not rows:
+            return "Остатки требуют ручной проверки #разобрать"
+        sold_by_name = self._sold_by_name()
+        lines = ["Остатки чая:"]
+        total_value = 0
+        for row in rows:
+            sold = sold_by_name.get(row["name"], 0)
+            remaining = row["purchased"] - sold
+            value = remaining * row["price"]
+            total_value += value
+            lines.append(
+                f"- {row['name']}: было {row['purchased']} г, продано {sold} г, "
+                f"остаток {remaining} г, примерно {value} руб"
+            )
+        lines.append(f"Итого по остаткам: примерно {total_value} руб")
+        return "\n".join(lines)
+
+    def _stock_rows(self, path: Path) -> list[dict]:
+        rows: list[dict] = []
         for line in path.read_text(encoding="utf-8").splitlines():
-            if line.startswith("| ") or line.startswith("#") or line.startswith("-"):
-                lines.append(line)
-            if len(lines) >= 25:
-                break
-        return "\n".join(lines).strip() or "Остатки требуют ручной проверки #разобрать"
+            if not line.startswith("| ") or line.startswith("| ---") or line.lower().startswith("| чай "):
+                continue
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            if len(cells) < 4:
+                continue
+            try:
+                purchased = int(float(cells[2]))
+                price = int(float(cells[3]))
+            except ValueError:
+                continue
+            rows.append({"name": cells[0], "purchased": purchased, "price": price})
+        return rows
+
+    def _sold_by_name(self) -> dict[str, int]:
+        sold: dict[str, int] = {}
+        for sale in self._active_sales():
+            name = sale.get("item", {}).get("name", "")
+            grams = int(sale.get("grams", 0))
+            sold[name] = sold.get(name, 0) + grams
+        return sold
 
     def _write_sale(self, sale: TeaSale) -> None:
         date = f"{sale.timestamp:%Y-%m-%d %H:%M}"
